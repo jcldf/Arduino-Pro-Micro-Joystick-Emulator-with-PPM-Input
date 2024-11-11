@@ -58,8 +58,8 @@ You can switch between input methods by setting the `usePPM` variable in the cod
 | Left Stick  | A3         | A4         |
 | Right Stick | A5         | A6         |
 
-###Usage
-##Hardware Setup
+### Usage
+## Hardware Setup
 PPM Input: Connect the PPM output of your RC receiver to ppmInputPin (Pin 3) on the Arduino. Ensure power and ground connections.
 Buttons and Analog Sticks: Connect buttons and analog sticks to specified pins.
 ##Software Setup
