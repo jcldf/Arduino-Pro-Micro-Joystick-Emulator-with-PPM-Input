@@ -1,46 +1,5 @@
 #include <Joystick.h>
 
-// Defina se você quer usar PPM
-const boolean usePPM = true;
-
-// Número de canais RC
-#define RC_CHANS 5
-volatile uint16_t rcValue[RC_CHANS] = {1502, 1502, 1502, 1502, 1502};
-
-// Variável para indicar quando novos dados PPM são recebidos
-volatile boolean newDataReceived = false;
-
-// Enumeração dos canais
-enum {
-  PITCH,
-  YAW,
-  THROTTLE,
-  ROLL,
-  AUX1
-};
-
-// Definição dos pinos (ajuste conforme necessário)
-const int ppmInputPin = 3; // INT0 no Pro Micro
-const int triangleButtonPin = 3; // Mesmo pino que PPM, só será usado se usePPM for false
-const int circleButtonPin = 4;
-const int squareButtonPin = 5;
-const int crossButtonPin = 6;
-const int dpadUpPin = 7;
-const int dpadDownPin = 8;
-const int dpadLeftPin = 9;
-const int dpadRightPin = 10;
-const int l1ButtonPin = 14; // D14 no Pro Micro
-const int r1ButtonPin = 16; // D16 no Pro Micro
-const int selectButtonPin = 18; // A0 no Pro Micro
-const int startButtonPin = 19; // A1 no Pro Micro
-const int homeButtonPin = 20; // A2 no Pro Micro
-
-const int leftStickXPin = A3; // A3
-const int leftStickYPin = A4; // A4
-const int rightStickXPin = A5; // A5
-const int rightStickYPin = A6; // A6
-
-// Inicializa o objeto Joystick
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
   JOYSTICK_TYPE_GAMEPAD,
   14, // Número de botões
@@ -58,122 +17,91 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
   false  // Include steering
 );
 
-void setup() {
-  // Inicia a comunicação serial
-  Serial.begin(115200);
-  while (!Serial) {
-    ; // Aguarda a inicialização da porta serial
-  }
-  Serial.println("Iniciando...");
+// Defina se você quer usar PPM
+const boolean usePPM = true;
 
+// Número de canais RC
+#define RC_CHANS 5
+volatile uint16_t rcValue[RC_CHANS] = {1502, 1502, 1502, 1502, 1502};
+uint16_t lastSentValue[RC_CHANS] = {1502, 1502, 1502, 1502, 1502};
+
+// Defina o limite para quantização (ajuste conforme necessário)
+const int QUANTIZATION_LIMIT = 10;
+
+// Variável para indicar quando novos dados PPM são recebidos
+volatile boolean newDataReceived = false;
+
+// Enumeração dos canais
+enum {
+  PITCH,
+  YAW,
+  THROTTLE,
+  ROLL,
+  AUX1
+};
+
+const int ppmInputPin = 3; // INT0 no Pro Micro
+
+void setup() {
+  Serial.begin(115200);
   setupPins();
   Joystick.begin();
 }
 
 void loop() {
-  readInputsAndUpdateJoystick();
+  if (usePPM) {
+    // Apenas atualiza se houve mudanças significativas
+    if (newDataReceived) {
+      newDataReceived = false;
 
-  // Se novos dados PPM foram recebidos, exibe os valores
-  if (newDataReceived) {
-    Serial.print("PPM Recebido - Valores dos canais: ");
-    Serial.print("PITCH: "); Serial.print(rcValue[PITCH]);
-    Serial.print(", YAW: "); Serial.print(rcValue[YAW]);
-    Serial.print(", THROTTLE: "); Serial.print(rcValue[THROTTLE]);
-    Serial.print(", ROLL: "); Serial.print(rcValue[ROLL]);
-    Serial.print(", AUX1: "); Serial.println(rcValue[AUX1]);
-    newDataReceived = false;
+      // Envia o estado atualizado do joystick para o computador
+      updateJoystick();
+      
+      Serial.print("PPM Recebido - Valores dos canais: ");
+      Serial.print("PITCH: "); Serial.print(rcValue[PITCH]);
+      Serial.print(", YAW: "); Serial.print(rcValue[YAW]);
+      Serial.print(", THROTTLE: "); Serial.print(rcValue[THROTTLE]);
+      Serial.print(", ROLL: "); Serial.print(rcValue[ROLL]);
+      Serial.print(", AUX1: "); Serial.println(rcValue[AUX1]);
+    }
   }
 }
 
 void setupPins(void) {
   if (usePPM) {
-    // Configura o pino PPM como entrada
     pinMode(ppmInputPin, INPUT);
     attachInterrupt(digitalPinToInterrupt(ppmInputPin), rxInt, RISING);
-  } else {
-    pinMode(triangleButtonPin, INPUT_PULLUP);
   }
-
-  // Configura os pinos dos botões
-  pinMode(circleButtonPin, INPUT_PULLUP);
-  pinMode(squareButtonPin, INPUT_PULLUP);
-  pinMode(crossButtonPin, INPUT_PULLUP);
-  pinMode(dpadUpPin, INPUT_PULLUP);
-  pinMode(dpadDownPin, INPUT_PULLUP);
-  pinMode(dpadLeftPin, INPUT_PULLUP);
-  pinMode(dpadRightPin, INPUT_PULLUP);
-  pinMode(l1ButtonPin, INPUT_PULLUP);
-  pinMode(r1ButtonPin, INPUT_PULLUP);
-  pinMode(selectButtonPin, INPUT_PULLUP);
-  pinMode(startButtonPin, INPUT_PULLUP);
-  pinMode(homeButtonPin, INPUT_PULLUP);
-
-  // Configura os pinos dos sticks analógicos como entrada
-  pinMode(leftStickXPin, INPUT);
-  pinMode(leftStickYPin, INPUT);
-  pinMode(rightStickXPin, INPUT);
-  pinMode(rightStickYPin, INPUT);
 }
 
-void readInputsAndUpdateJoystick() {
-  // Lê os botões
-  if (!usePPM) {
-    Joystick.setButton(0, !digitalRead(triangleButtonPin));
-  }
-  Joystick.setButton(1, !digitalRead(circleButtonPin));
-  Joystick.setButton(2, !digitalRead(squareButtonPin));
-  Joystick.setButton(3, !digitalRead(crossButtonPin));
-  Joystick.setButton(4, !digitalRead(dpadUpPin));
-  Joystick.setButton(5, !digitalRead(dpadDownPin));
-  Joystick.setButton(6, !digitalRead(dpadLeftPin));
-  Joystick.setButton(7, !digitalRead(dpadRightPin));
-  Joystick.setButton(8, !digitalRead(l1ButtonPin));
-  Joystick.setButton(9, !digitalRead(r1ButtonPin));
-  Joystick.setButton(10, !digitalRead(selectButtonPin));
-  Joystick.setButton(11, !digitalRead(startButtonPin));
-  Joystick.setButton(12, !digitalRead(homeButtonPin));
-
-  // Lê os valores analógicos
-  int leftStickX = analogRead(leftStickXPin) >> 2;
-  int leftStickY = analogRead(leftStickYPin) >> 2;
-  int rightStickX = analogRead(rightStickXPin) >> 2;
-  int rightStickY = analogRead(rightStickYPin) >> 2;
-
-  Joystick.setXAxis(leftStickX);
-  Joystick.setYAxis(leftStickY);
-  Joystick.setZAxis(rightStickX);
-  Joystick.setRxAxis(rightStickY);
-
-  if (usePPM) {
-    // Usa o canal AUX1 para o botão triangle
-    Joystick.setButton(0, rcValue[AUX1] > 1500);
-
-    // Usa os valores dos sticks do transmissor RC
-    Joystick.setXAxis(stickValue(rcValue[YAW]));
-    Joystick.setYAxis(stickValue(rcValue[THROTTLE]));
-    Joystick.setZAxis(stickValue(rcValue[ROLL]));
-    Joystick.setRxAxis(stickValue(rcValue[PITCH]));
+void updateJoystick() {
+  // Somente envia mudanças se ultrapassarem o limite de quantização
+  if (abs(rcValue[YAW] - lastSentValue[YAW]) > QUANTIZATION_LIMIT) {
+    Joystick.setXAxis(mapToJoystickRange(rcValue[YAW]));
+    lastSentValue[YAW] = rcValue[YAW];
   }
 
-  // Envia o estado atualizado
+  if (abs(rcValue[THROTTLE] - lastSentValue[THROTTLE]) > QUANTIZATION_LIMIT) {
+    Joystick.setYAxis(mapToJoystickRange(rcValue[THROTTLE]));
+    lastSentValue[THROTTLE] = rcValue[THROTTLE];
+  }
+
+  if (abs(rcValue[ROLL] - lastSentValue[ROLL]) > QUANTIZATION_LIMIT) {
+    Joystick.setZAxis(mapToJoystickRange(rcValue[ROLL]));
+    lastSentValue[ROLL] = rcValue[ROLL];
+  }
+
+  if (abs(rcValue[PITCH] - lastSentValue[PITCH]) > QUANTIZATION_LIMIT) {
+    Joystick.setRxAxis(mapToJoystickRange(rcValue[PITCH]));
+    lastSentValue[PITCH] = rcValue[PITCH];
+  }
+
   Joystick.sendState();
 }
 
-// Função para mapear os valores do stick
-byte stickValue(int rcVal) {
-  return map(constrain(rcVal - 1000, 0, 1000), 0, 1000, 0, 255);
-}
-
-// Ajustes finos (se necessário)
-uint16_t adjust(uint16_t diff, uint8_t chan) {
-  switch (chan) {
-    case THROTTLE: return diff + 50;
-    case YAW:      return diff + 60;
-    case PITCH:    return diff + 60;
-    case ROLL:     return diff + 60;
-    case AUX1:     return diff + 10;
-  }
-  return diff;
+// Função para mapear os valores PPM para o intervalo do joystick (0 a 255)
+byte mapToJoystickRange(int rcVal) {
+  return map(constrain(rcVal, 1000, 2000), 1000, 2000, 0, 255);
 }
 
 // Rotina de interrupção para leitura do sinal PPM
@@ -185,13 +113,26 @@ void rxInt(void) {
   now = micros();
   diff = now - last;
   last = now;
+
   if (diff > 3000) {
     chan = 0;
   } else {
     if (900 < diff && diff < 2200 && chan < RC_CHANS) {
-      rcValue[chan] = adjust(diff, chan);
-      newDataReceived = true; // Indica que novos dados foram recebidos
+      rcValue[chan] = adjust(diff, chan); // Ajuste fino, se necessário
+      newDataReceived = true;
     }
     chan++;
   }
+}
+
+// Ajustes finos (opcional)
+uint16_t adjust(uint16_t diff, uint8_t chan) {
+  switch (chan) {
+    case THROTTLE: return diff + 50;
+    case YAW:      return diff + 60;
+    case PITCH:    return diff + 60;
+    case ROLL:     return diff + 60;
+    case AUX1:     return diff + 10;
+  }
+  return diff;
 }
