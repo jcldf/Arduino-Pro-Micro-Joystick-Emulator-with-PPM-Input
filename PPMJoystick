@@ -23,10 +23,6 @@ const boolean usePPM = true;
 // Número de canais RC
 #define RC_CHANS 5
 volatile uint16_t rcValue[RC_CHANS] = {1502, 1502, 1502, 1502, 1502};
-uint16_t lastSentValue[RC_CHANS] = {1502, 1502, 1502, 1502, 1502};
-
-// Defina o limite para quantização (ajuste conforme necessário)
-const int QUANTIZATION_LIMIT = 10;
 
 // Variável para indicar quando novos dados PPM são recebidos
 volatile boolean newDataReceived = false;
@@ -49,21 +45,22 @@ void setup() {
 }
 
 void loop() {
-  if (usePPM) {
-    // Apenas atualiza se houve mudanças significativas
-    if (newDataReceived) {
-      newDataReceived = false;
+  if (usePPM && newDataReceived) {
+    newDataReceived = false;
 
-      // Envia o estado atualizado do joystick para o computador
-      updateJoystick();
-      
-      Serial.print("PPM Recebido - Valores dos canais: ");
-      Serial.print("PITCH: "); Serial.print(rcValue[PITCH]);
-      Serial.print(", YAW: "); Serial.print(rcValue[YAW]);
-      Serial.print(", THROTTLE: "); Serial.print(rcValue[THROTTLE]);
-      Serial.print(", ROLL: "); Serial.print(rcValue[ROLL]);
-      Serial.print(", AUX1: "); Serial.println(rcValue[AUX1]);
-    }
+    // Atualiza o estado do joystick com os valores mapeados
+    Joystick.setXAxis(mapToJoystickRange(rcValue[YAW]));
+    Joystick.setYAxis(mapToJoystickRange(rcValue[THROTTLE]));
+    Joystick.setZAxis(mapToJoystickRange(rcValue[ROLL]));
+    Joystick.setRxAxis(mapToJoystickRange(rcValue[PITCH]));
+    Joystick.sendState();
+
+    Serial.print("PPM Recebido - Valores dos canais: ");
+    Serial.print("PITCH: "); Serial.print(rcValue[PITCH]);
+    Serial.print(", YAW: "); Serial.print(rcValue[YAW]);
+    Serial.print(", THROTTLE: "); Serial.print(rcValue[THROTTLE]);
+    Serial.print(", ROLL: "); Serial.print(rcValue[ROLL]);
+    Serial.print(", AUX1: "); Serial.println(rcValue[AUX1]);
   }
 }
 
@@ -72,31 +69,6 @@ void setupPins(void) {
     pinMode(ppmInputPin, INPUT);
     attachInterrupt(digitalPinToInterrupt(ppmInputPin), rxInt, RISING);
   }
-}
-
-void updateJoystick() {
-  // Somente envia mudanças se ultrapassarem o limite de quantização
-  if (abs(rcValue[YAW] - lastSentValue[YAW]) > QUANTIZATION_LIMIT) {
-    Joystick.setXAxis(mapToJoystickRange(rcValue[YAW]));
-    lastSentValue[YAW] = rcValue[YAW];
-  }
-
-  if (abs(rcValue[THROTTLE] - lastSentValue[THROTTLE]) > QUANTIZATION_LIMIT) {
-    Joystick.setYAxis(mapToJoystickRange(rcValue[THROTTLE]));
-    lastSentValue[THROTTLE] = rcValue[THROTTLE];
-  }
-
-  if (abs(rcValue[ROLL] - lastSentValue[ROLL]) > QUANTIZATION_LIMIT) {
-    Joystick.setZAxis(mapToJoystickRange(rcValue[ROLL]));
-    lastSentValue[ROLL] = rcValue[ROLL];
-  }
-
-  if (abs(rcValue[PITCH] - lastSentValue[PITCH]) > QUANTIZATION_LIMIT) {
-    Joystick.setRxAxis(mapToJoystickRange(rcValue[PITCH]));
-    lastSentValue[PITCH] = rcValue[PITCH];
-  }
-
-  Joystick.sendState();
 }
 
 // Função para mapear os valores PPM para o intervalo do joystick (0 a 255)
